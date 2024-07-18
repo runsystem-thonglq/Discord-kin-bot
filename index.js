@@ -2,7 +2,8 @@ const { Client, VoiceConnectionStatus, IntentsBitField } = require('discord.js')
 const fs = require('fs');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
-
+require('dotenv').config();
+const { env } = require('process');
 const client = new Client({ 
   intents: [
     IntentsBitField.Flags.Guilds,
@@ -55,4 +56,4 @@ client.on('messageCreate', async message => {
 
 
 
-client.login('MTI2MzMxMTAzODQyMjU4NTM4NA.Gg_Psm.5IKniN6nQLn64Ov2qSs7WtX9NCLlEzNIMZ4QPs');
+client.login(env.DISCORD_TOKEN);
