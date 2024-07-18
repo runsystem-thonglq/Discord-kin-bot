@@ -4,6 +4,18 @@ const { joinVoiceChannel, createAudioPlayer, createAudioResource } = require('@d
 const ytdl = require('ytdl-core');
 require('dotenv').config();
 const { env } = require('process');
+const port = env.PORT || 4000;
+const express = require('express')
+const app = express()
+
+app.get('/', (req, res) => {
+  res.send('Hello World!')
+})
+
+app.listen(port, () => {
+  console.log(`Example app listening on port ${port}`)
+})
+
 const client = new Client({ 
   intents: [
     IntentsBitField.Flags.Guilds,
