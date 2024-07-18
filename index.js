@@ -28,6 +28,9 @@ for (const file of commandFiles) {
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
+  client.guilds.cache.forEach(guild => {
+    console.log(`ID của máy chủ "${guild.name}" là: ${guild.id}`);
+  });
 });
 
 client.on('interactionCreate', async interaction => {
@@ -54,6 +57,45 @@ client.on('messageCreate', async message => {
   }
 });
 
+client.on('guildMemberAdd', member => {
+  const guild = client.guilds.cache.get(oldState.guild.id);
+  const channel = member.guild.systemChannel; // Hoặc thay bằng ID của kênh chào mừng
+  const defaultChannel = guild.channels.cache.find(channel => channel.type == 0 )||channel
+  if (defaultChannel) {
+    defaultChannel.send(`Chào mừng ${member} đã tham gia máy chủ!`);
+  }
+});
 
+client.on('presenceUpdate', (oldPresence, newPresence) => {
+  if (!oldPresence || oldPresence.status === 'offline') {
+    const member = newPresence.member;
+    const guild = client.guilds.cache.get(oldState.guild.id);
+    const channel = member.guild.systemChannel; // Hoặc thay bằng ID của kênh chào mừng
+    const defaultChannel = guild.channels.cache.find(channel => channel.type == 0 )||channel
+    if (defaultChannel) {
+      defaultChannel.send(`Chào mừng ${member} đã online!`);
+    }
+  }
+});
 
+client.on('voiceStateUpdate', (oldState, newState) => {
+  const guild = client.guilds.cache.get(oldState.guild.id);
+  // guild.channels.cache.forEach(g => {
+  //   console.log(`ID của máy chủ "${g.name}" là: ${g.id} channel.type:${g.type}  : ${g.guild.systemChannelId }`);
+  // });
+  const member = newState.member;
+  const channel = newState.channel; // Kênh mà thành viên mới tham gia
+  const defaultChannel = guild.channels.cache.find(channel => channel.type == 0 )||channel
+
+  if (channel) {
+    // Thành viên tham gia hoặc chuyển sang kênh voice mới
+    defaultChannel.send(`Chào bé ${member} đã tham gia kênh voice ${channel.name}!`);
+  } else {
+    // Thành viên rời kênh voice
+    const oldChannel = oldState.channel;
+    if (oldChannel) {
+      defaultChannel.send(`Tạm biệt bé ${member} đã rời kênh voice ${oldChannel.name}.`);
+    }
+  }
+});
 client.login(env.DISCORD_TOKEN);
