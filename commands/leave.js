@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
+const queueManager = require('../data'); // Đảm bảo rằng bạn đã import đúng module quản lý hàng đợi
 
 module.exports = {
   name: 'leave',
@@ -12,11 +13,11 @@ module.exports = {
       return interaction.reply('You need to be in a voice channel to make the bot leave!');
     }
 
-    const serverQueue = queue.get(interaction.guildId);
+    const serverQueue = queueManager.getQueue(interaction.guildId); // Sử dụng hàm để lấy hàng đợi của máy chủ
     if (serverQueue) {
       serverQueue.player.stop();
       serverQueue.connection.destroy();
-      queue.delete(interaction.guildId);
+      queueManager.deleteQueue(interaction.guildId); // Sử dụng hàm deleteQueue để xóa hàng đợi của máy chủ
       interaction.reply('Left the voice channel.');
     } else {
       interaction.reply('No music is currently playing.');

@@ -9,7 +9,7 @@ module.exports = {
   async execute(interaction) {
     const helpMsg = `
       List of commands:
-      - /play <query> - Play a song from YouTube.
+      - /play <query> - Play a song from SoundClound.
       - /pause - Pause the current song.
       - /resume - Resume the paused song.
       - /skip - Skip the current song.

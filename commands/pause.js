@@ -1,20 +1,29 @@
+const { getVoiceConnection } = require('@discordjs/voice');
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const queue = require('../data');
 
 module.exports = {
-  name:'pause',
+  name: 'pause',
   data: new SlashCommandBuilder()
     .setName('pause')
     .setDescription('Dừng chơi nhạc'),
 
-  async execute(interaction) {
-    const serverQueue = queue.get(interaction.guild.id);
-
-    if (!serverQueue || !serverQueue.audioPlayer) {
-      return interaction.reply('Không có bài hát nào đang được phát.');
+  async execute(message) {
+    const voiceChannel = message.member.voice.channel;
+    if (!voiceChannel) {
+      return message.channel.send("Bạn cần ở trong một kênh thoại để dừng nhạc!");
     }
 
-    serverQueue.audioPlayer.pause();
-    interaction.reply('Đã dừng chơi nhạc.');
+    const connection = getVoiceConnection(message.guild.id);
+    if (!connection) {
+      return message.channel.send("Bot không đang phát nhạc trong kênh thoại nào.");
+    }
+
+    const player = connection.state.subscription.player;
+    if (!player) {
+      return message.channel.send("Không có bài hát nào đang được phát.");
+    }
+
+    player.pause();
+    message.channel.send('Đã dừng chơi nhạc.');
   },
 };

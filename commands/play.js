@@ -1,219 +1,169 @@
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, VoiceConnectionStatus, AudioPlayerStatus } = require('@discordjs/voice');
-const ytdl = require("ytdl-core");
-const ytSearch = require('yt-search');
-
-const videoChoices = new Map();
-const queue = require('../data');
+const {
+  joinVoiceChannel,
+  createAudioPlayer,
+  createAudioResource,
+  AudioPlayerStatus,
+} = require("@discordjs/voice");
+const scdl = require("soundcloud-downloader").default;
 const { SlashCommandBuilder } = require("@discordjs/builders");
+require("dotenv").config();
+const { env } = require("process");
+const queueManager = require("../data");
+const playSong = require("../utils/playsong");
+
 module.exports = {
   name: "play",
-
   data: new SlashCommandBuilder()
     .setName("play")
-    .setDescription("Play a song from YouTube"),
-    // .addStringOption((option) =>
-    //   option
-    //     .setName("query")
-    //     .setDescription("The song to search for or the YouTube URL")
-    //     .setRequired(true)
-    // ),
-
+    .setDescription("Play a track from SoundCloud"),
   async execute(message, args) {
-    console.log("🚀 ~ execute ~ args:", args)
     const voiceChannel = message.member.voice.channel;
-
     if (!voiceChannel) {
-      return message.reply("You need to be in a voice channel to play music!");
+        return message.channel.send("🎧 Cần join channel để nge nhạc !!!");
     }
-
     const permissions = voiceChannel.permissionsFor(message.client.user);
     if (!permissions.has("CONNECT") || !permissions.has("SPEAK")) {
-      return message.reply(
+
+      return message.channel.send(
         "I need the permissions to join and speak in your voice channel!"
       );
     }
-
     if (args?.length === 0) {
-      return message.reply(
-        "You need to provide a YouTube URL or search keyword!"
+      return message.channel.send(
+        "You need to provide a SoundCloud URL or search keyword!"
       );
     }
-
     const search = args.join(" ");
     try {
-      const videoResult = await ytSearch(search);
-      if (videoResult && videoResult.videos.length > 0) {
-        const videos = videoResult.videos.slice(0, 5);
-        let reply = "Please choose a video by typing a number (1-5):\n";
+      const CLIENT_ID = env.SOUNDCLOUD_CLIENT_ID;
+      const tracks = await scdl.search({
+        query: search,
+        resourceType: "tracks",
+        limit: 5,
+        offset: 0,
+        clientId: CLIENT_ID,
+      });
 
-        videos.forEach((video, index) => {
-          reply += `${index + 1}. ${video.title} (${video.timestamp})\n`;
+      if (tracks?.collection && tracks.collection.length > 0) {
+        let reply = "🎵  Chọn 1 bài bằng cách nhập (1-5):\n";
+        tracks.collection.forEach((track, index) => {
+          reply += `${index + 1}. ${track.title} (${Math.floor(
+            track.duration / 1000 / 60
+          )}:${Math.floor((track.duration / 1000) % 60)
+            .toString()
+            .padStart(2, "0")})\n`;
         });
-
-        message.reply(reply);
-
-        // Save the choices to the map
-        videoChoices.set(message.author.id, videos);
+        message.channel.send(reply);
 
         const filter = (response) => {
           return (
             ["1", "2", "3", "4", "5"].includes(response.content) &&
-            response.author.id === message.author.id
+            response.author.id === message.user.id
           );
         };
-
-        const collected = await message.channel.awaitMessages({ filter, max: 1, time: 30000, errors: ["time"] });
+        const collected = await message.channel.awaitMessages({
+          filter,
+          max: 1,
+          time: 30000,
+          errors: ["time"],
+        });
         const choice = collected.first().content;
-        const video = videos[parseInt(choice) - 1];
-        await playSong(video.url, message, voiceChannel);
+        const track = tracks.collection[parseInt(choice) - 1];
+        await handleSong(track, message, voiceChannel, CLIENT_ID);
       } else {
-        message.reply("No video results found.");
+        message.channel.send("Không tìm thấy kết quả nào");
       }
     } catch (error) {
       console.error(error);
-      message.reply("There was an error searching for the song!");
+      message.channel.send("There was an error searching for the track!");
     }
   },
 };
 
-async function playSong(url, message, voiceChannel) {
-  try {
-    const connection = joinVoiceChannel({
-      channelId: voiceChannel.id,
-      guildId: message.guild.id,
-      adapterCreator: message.guild.voiceAdapterCreator,
-    });
+async function handleSong(track, message, voiceChannel, clientId) {
+  let serverQueue = queueManager.getQueue(voiceChannel.id);
 
-    const player = createAudioPlayer();
-    connection.subscribe(player);
+  if (!serverQueue) {
+    serverQueue = {
+      textChannel: message.channel,
+      voiceChannel: voiceChannel,
+      connection: null,
+      songs: [],
+      volume: 5,
+      playing: false,
+      player: null,
+    };
+    queueManager.setQueue(voiceChannel.id, serverQueue);
+  }
 
-    const stream = ytdl(url, { filter: "audioonly" });
-    const resource = createAudioResource(stream);
-    // player.play(resource);
+  serverQueue.songs.push({
+    title: track.title,
+    url: track.permalink_url,
+  });
 
-    player.on(AudioPlayerStatus.Playing, () => {
-      console.log("The audio player has started playing!");
-    });
+  if (!serverQueue.playing) {
+    serverQueue.playing = true;
+    try {
+      const connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator,
+      });
+      serverQueue.connection = connection;
+      serverQueue.player = createAudioPlayer();
+      connection.subscribe(serverQueue.player);
 
-    player.on(AudioPlayerStatus.Idle, () => {
-      const serverQueue = queue.get(message.guild.id);
-      if (serverQueue) {
+      serverQueue.player.on(AudioPlayerStatus.Playing, () => {
+        console.log("🚀 ~ playSong ~ Playing:", serverQueue.songs.length);
+        message.channel.send(`🔊 Đang phát: ${serverQueue.songs[0].title} ${serverQueue.songs[0].url}`);
+      });
+
+      serverQueue.player.on(AudioPlayerStatus.Idle, () => {
+        console.log("🚀 ~ playSong ~ STOPPP:", serverQueue.songs.length);
         serverQueue.songs.shift();
-        if (serverQueue.songs.length > 0) {
-          playSong(serverQueue.songs[0].url, message, voiceChannel);
-        } else {
-          connection.destroy();
-        }
-      }
-    });
+        playSong(serverQueue, clientId, message.channel);
+      });
 
-    message.reply(`Now playing: ${url}`);
-  } catch (error) {
-    console.error("Error playing the song:", error);
-    message.reply("There was an error playing the song!");
+      playSong(serverQueue, clientId, message.channel);
+    } catch (error) {
+      console.error(error);
+      queueManager.deleteQueue(voiceChannel.id);
+      return message.channel.send(
+         "There was an error connecting to the voice channel!",
+      );
+    }
+  } else {
+    message.channel.send(`🎤 Đã thêm vào danh sách: ${track.title}`);
   }
 }
 
-// const { joinVoiceChannel, createAudioPlayer, createAudioResource, entersState, VoiceConnectionStatus, AudioPlayerStatus } = require('@discordjs/voice');
-// const ytdl = require('ytdl-core');
-// const ytSearch = require('yt-search');
+// async function playSong(serverQueue, clientId, textChannel) {
+//   if (serverQueue.songs.length === 0) {
+//     serverQueue.playing = false;
+//     serverQueue.connection.destroy();
+//     queueManager.deleteQueue(serverQueue.voiceChannel.id);
+//     return;
+//   }
 
-// const videoChoices = new Map();
-
-// module.exports = {
-//   name: 'play',
-//   description: 'Search and play a song from YouTube.',
-//   async execute(message, args) {
-//     console.log("🚀 ~ execute ~ message.member.voice:", message.member.voice)
-//     const voiceChannel = message.member.voice.channel;
-
-//     if (!voiceChannel) {
-//       return message.reply('You need to be in a voice channel to play music!');
-//     }
-
-//     const permissions = voiceChannel.permissionsFor(message.client.user);
-//     if (!permissions.has('CONNECT') || !permissions.has('SPEAK')) {
-//       return message.reply('I need the permissions to join and speak in your voice channel!');
-//     }
-
-//     if (args.length === 0) {
-//       return message.reply('You need to provide a YouTube URL or search keyword!');
-//     }
-
-//     const search = args.join(' ');
-
-//     try {
-//       const videoResult = await ytSearch(search);
-//       if (videoResult && videoResult.videos.length > 0) {
-//         const videos = videoResult.videos.slice(0, 5);
-//         let reply = 'Please choose a video by typing a number (1-5):\n';
-
-//         videos.forEach((video, index) => {
-//           reply += `${index + 1}. ${video.title} (${video.timestamp})\n`;
-//         });
-
-//         message.reply(reply);
-
-//         // Save the choices to the map
-//         videoChoices.set(message.author.id, videos);
-
-//         const filter = response => {
-//           return (
-//             ['1', '2', '3', '4', '5'].includes(response.content) &&
-//             response.author.id === message.author.id
-//           );
-//         };
-
-//         message.channel
-//           .awaitMessages({ filter, max: 1, time: 30000, errors: ['time'] })
-//           .then(collected => {
-//             const choice = collected.first().content;
-//             const video = videos[parseInt(choice) - 1];
-
-//             playSong(video.url, message, voiceChannel);
-//           })
-//           .catch(() => {
-//             message.reply('You did not choose a video in time.');
-//             videoChoices.delete(message.author.id);
-//           });
-//       } else {
-//         message.reply('No video results found.');
-//       }
-//     } catch (error) {
-//       console.error(error);
-//       message.reply('There was an error searching for the song!');
-//     }
-//   },
-// };
-
-// async function playSong(url, message, voiceChannel) {
+//   const song = serverQueue.songs[0];
 //   try {
-//     const connection = joinVoiceChannel({
-//       channelId: voiceChannel.id,
-//       guildId: message.guild.id,
-//       adapterCreator: message.guild.voiceAdapterCreator,
-//     });
-
-//     const player = createAudioPlayer();
-//     connection.subscribe(player);
-
-//     const stream = ytdl(url, { filter: 'audioonly' });
+//     const stream = await scdl.download(song.url, clientId);
 //     const resource = createAudioResource(stream);
+//     serverQueue.player.play(resource);
 
-//     player.play(resource);
-
-//     player.on(AudioPlayerStatus.Playing, () => {
-//       console.log('The audio player has started playing!');
+//     serverQueue.player.on(AudioPlayerStatus.Playing, () => {
+//       console.log("The audio player has started playing!");
+//       textChannel.send(`Now playing: ${song.title}`);
 //     });
 
-//     player.on(AudioPlayerStatus.Idle, () => {
-//       connection.destroy();
-//       console.log('The audio player has stopped playing!');
+//     serverQueue.player.on(AudioPlayerStatus.Idle, () => {
+//       serverQueue.songs.shift();
+//       playSong(serverQueue, clientId, textChannel);
 //     });
-
-//     message.reply(`Now playing: ${url}`);
 //   } catch (error) {
-//     console.error('Error playing the song:', error);
-//     message.reply('There was an error playing the song!');
+//     console.error("Error playing the track:", error);
+//     textChannel.send("There was an error playing the track!");
+//     serverQueue.songs.shift();
+//     playSong(serverQueue, clientId, textChannel);
 //   }
 // }

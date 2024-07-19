@@ -50,7 +50,7 @@ module.exports = {
         player.play(resource);
 
         player.on(AudioPlayerStatus.Playing, () => {
-          console.log('OK :)))');
+          // console.log('OK :)))');
         });
 
         player.on(AudioPlayerStatus.Idle, () => {
@@ -58,7 +58,7 @@ module.exports = {
           fs.unlinkSync(filePath);
         });
 
-        interaction.reply('OK :)))');
+        // interaction.reply('👮 🎤🎤🎤🎤');
       } catch (error) {
         console.error('Error playing the TTS audio:', error);
         interaction.reply('Có lỗi xảy ra khi bot nói.');

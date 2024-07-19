@@ -1,6 +1,8 @@
-// queue.js
+const queues = new Map();
 
-// Define your queue (assuming it's a Map)
-const queue = new Map();
-
-module.exports = queue;
+module.exports = {
+  getQueue: (channelId) => queues.get(channelId),
+  setQueue: (channelId, queue) => queues.set(channelId, queue),
+  deleteQueue: (channelId) => queues.delete(channelId),
+  getAllQueues: () => queues
+};
