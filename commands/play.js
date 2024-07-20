@@ -19,11 +19,10 @@ module.exports = {
   async execute(message, args) {
     const voiceChannel = message.member.voice.channel;
     if (!voiceChannel) {
-        return message.channel.send("🎧 Cần join channel để nge nhạc !!!");
+      return message.channel.send("🎧 Cần join channel để nge nhạc !!!");
     }
     const permissions = voiceChannel.permissionsFor(message.client.user);
     if (!permissions.has("CONNECT") || !permissions.has("SPEAK")) {
-
       return message.channel.send(
         "I need the permissions to join and speak in your voice channel!"
       );
@@ -74,7 +73,6 @@ module.exports = {
         message.channel.send("Không tìm thấy kết quả nào");
       }
     } catch (error) {
-      console.error(error);
       message.channel.send("There was an error searching for the track!");
     }
   },
@@ -114,8 +112,12 @@ async function handleSong(track, message, voiceChannel, clientId) {
       connection.subscribe(serverQueue.player);
 
       serverQueue.player.on(AudioPlayerStatus.Playing, () => {
-        console.log("🚀 ~ playSong ~ Playing:", serverQueue.songs.length);
-        message.channel.send(`🔊 Đang phát: ${serverQueue.songs[0].title} ${serverQueue.songs[0].url}`);
+        if (serverQueue.songs.length > 0) {
+          console.log("🚀 ~ playSong ~ Playing:", serverQueue.songs.length);
+          message.channel.send(
+            `🔊 Đang phát: ${serverQueue.songs[0].title} ${serverQueue.songs[0].url}`
+          );
+        }
       });
 
       serverQueue.player.on(AudioPlayerStatus.Idle, () => {
@@ -126,10 +128,9 @@ async function handleSong(track, message, voiceChannel, clientId) {
 
       playSong(serverQueue, clientId, message.channel);
     } catch (error) {
-      console.error(error);
       queueManager.deleteQueue(voiceChannel.id);
       return message.channel.send(
-         "There was an error connecting to the voice channel!",
+        "There was an error connecting to the voice channel!"
       );
     }
   } else {
@@ -137,33 +138,3 @@ async function handleSong(track, message, voiceChannel, clientId) {
   }
 }
 
-// async function playSong(serverQueue, clientId, textChannel) {
-//   if (serverQueue.songs.length === 0) {
-//     serverQueue.playing = false;
-//     serverQueue.connection.destroy();
-//     queueManager.deleteQueue(serverQueue.voiceChannel.id);
-//     return;
-//   }
-
-//   const song = serverQueue.songs[0];
-//   try {
-//     const stream = await scdl.download(song.url, clientId);
-//     const resource = createAudioResource(stream);
-//     serverQueue.player.play(resource);
-
-//     serverQueue.player.on(AudioPlayerStatus.Playing, () => {
-//       console.log("The audio player has started playing!");
-//       textChannel.send(`Now playing: ${song.title}`);
-//     });
-
-//     serverQueue.player.on(AudioPlayerStatus.Idle, () => {
-//       serverQueue.songs.shift();
-//       playSong(serverQueue, clientId, textChannel);
-//     });
-//   } catch (error) {
-//     console.error("Error playing the track:", error);
-//     textChannel.send("There was an error playing the track!");
-//     serverQueue.songs.shift();
-//     playSong(serverQueue, clientId, textChannel);
-//   }
-// }
