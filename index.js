@@ -1,6 +1,6 @@
-const { Client, VoiceConnectionStatus, IntentsBitField } = require('discord.js');
+const { Client, IntentsBitField } = require('discord.js');
 const fs = require('fs');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource } = require('@discordjs/voice');
+const { VoiceConnectionStatus,joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 require('dotenv').config();
 const { env } = require('process');
@@ -10,6 +10,8 @@ const app = express()
 const gtts = require('gtts');
 const path = require('path');
 const bootstrap = require('./deploy/bootrap');
+const queueManager = require("./data");
+
 app.get('/', (req, res) => {
   res.send('Hello World!')
 })
@@ -65,24 +67,24 @@ client.on('interactionCreate', async interaction => {
 });
 
 
-client.on('messageCreate', async message => {
-    console.log(222);
-  // if (!message.content.startsWith('/') || message.author.bot) return;
+// client.on('messageCreate', async message => {
+//     console.log(222);
+//   // if (!message.content.startsWith('/') || message.author.bot) return;
   
-  // const args = message.content.slice('/').trim().split(/ +/);
-  // const commandName = args.shift().replace("/","").toLowerCase();
+//   // const args = message.content.slice('/').trim().split(/ +/);
+//   // const commandName = args.shift().replace("/","").toLowerCase();
 
-  // if (!client.commands.has(commandName)) return;
+//   // if (!client.commands.has(commandName)) return;
 
-  // const command = client.commands.get(commandName);
+//   // const command = client.commands.get(commandName);
 
-  // try {
-  //   await command.execute(message,args);
-  // } catch (error) {
-  //   console.error(error);
-  //   message.channel.send('There was an error trying to execute that command!');
-  // }
-});
+//   // try {
+//   //   await command.execute(message,args);
+//   // } catch (error) {
+//   //   console.error(error);
+//   //   message.channel.send('There was an error trying to execute that command!');
+//   // }
+// });
 
 client.on('guildMemberAdd', member => {
   const guild = client.guilds.cache.get(oldState.guild.id);
@@ -137,32 +139,74 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       }
 
       if (channel) {
-        const connection = joinVoiceChannel({
-          channelId: channel.id,
-          guildId: guild.id,
-          adapterCreator: guild.voiceAdapterCreator,
-        });
+        
+        const serverQueue = queueManager.getQueue(channel.id);
+        const connection = getVoiceConnection(guild.id);
+        
+        if (
+          serverQueue &&
+          connection &&
+          connection.state.status === VoiceConnectionStatus.Ready
+        ){
+          serverQueue.player.pause();
+          const player = createAudioPlayer();
+          connection.subscribe(player);
+  
+          const resource = createAudioResource(filePath);
+          player.play(resource);
+  
+          player.on('error', error => {
+            console.error('Error playing audio:', error);
+          });
+  
+          player.on('idle', () => {
+            try {
+              if (
+                serverQueue &&
+                connection &&
+                connection.state.status === VoiceConnectionStatus.Ready
+              ) {
+                connection.subscribe(serverQueue.player);
+  
+                serverQueue.player.unpause();
+              }
+              fs.unlinkSync(filePath); // Xóa tệp âm thanh sau khi phát
+            } catch (error) {
+              
+            }
+          });
+        }
+        else{
 
-        const player = createAudioPlayer();
-        connection.subscribe(player);
-
-        const resource = createAudioResource(filePath);
-        player.play(resource);
-
-        player.on('error', error => {
-          console.error('Error playing audio:', error);
-        });
-
-        player.on('idle', () => {
-          try {
-            
-            player.stop();
-            connection.destroy();
-            fs.unlinkSync(filePath); // Xóa tệp âm thanh sau khi phát
-          } catch (error) {
-            
-          }
-        });
+          const connection = joinVoiceChannel({
+            channelId: channel.id,
+            guildId: guild.id,
+            adapterCreator: guild.voiceAdapterCreator,
+          });
+  
+          const player = createAudioPlayer();
+          connection.subscribe(player);
+  
+          const resource = createAudioResource(filePath);
+          player.play(resource);
+  
+          player.on('error', error => {
+            console.error('Error playing audio:', error);
+          });
+  
+          player.on('idle', () => {
+            try {
+              
+              player.stop();
+              connection.destroy();
+              fs.unlinkSync(filePath); // Xóa tệp âm thanh sau khi phát
+            } catch (error) {
+              
+            }
+          });
+        }
+        
+        
       }
     });
   }

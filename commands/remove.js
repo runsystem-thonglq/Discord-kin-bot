@@ -10,6 +10,7 @@ module.exports = {
   ,
 
   async execute(interaction,args) {
+    const serverQueue = queueManager.getQueue(interaction.guildId); // Sử dụng hàm để lấy hàng đợi của máy chủ
     const position = parseInt(args[0]);
     if (
       isNaN(position) ||
@@ -21,7 +22,6 @@ module.exports = {
       );
     }
     
-    const serverQueue = queueManager.getQueue(interaction.guildId); // Sử dụng hàm để lấy hàng đợi của máy chủ
     if (serverQueue && serverQueue.songs.length >= position && position >= 1) {
       const removedSong = serverQueue.songs.splice(position - 1, 1)[0];
       interaction.reply(`Removed song: ${removedSong.title}`);
