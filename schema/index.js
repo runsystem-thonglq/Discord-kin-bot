@@ -3,6 +3,7 @@
 const { Constants } = require("discord.js");
 
 const schema = [
+ 
   {
     name: "play",
     description: "Plays a song or playlist on SoundCloud",
@@ -83,6 +84,19 @@ const schema = [
   {
     name: "help",
     description: "See the help for this bot",
+  },
+  {
+    name: "pyoutube",
+    description: "Plays a song or playlist on Youtube",
+    options: [
+      {
+        name: "input",
+        type: 3,
+        description:
+          "The url or keyword to search videos or playlist on Youtube",
+        required: true,
+      },
+    ],
   },
 ];
 
