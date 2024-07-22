@@ -4,22 +4,23 @@ const {
   createAudioResource,
   AudioPlayerStatus,
 } = require("@discordjs/voice");
-const scdl = require("soundcloud-downloader").default;
+const ytdl = require("ytdl-core");
 const { SlashCommandBuilder } = require("@discordjs/builders");
+const { google } = require('googleapis');
 require("dotenv").config();
 const { env } = require("process");
 const queueManager = require("../data");
-const playSong = require("../utils/playsong");
+const playYT = require("../utils/playYT");
 
 module.exports = {
-  name: "play",
+  name: "pyoutube",
   data: new SlashCommandBuilder()
-    .setName("play")
-    .setDescription("Play a track from SoundCloud"),
+    .setName("pyoutube")
+    .setDescription("Play a track from YouTube"),
   async execute(message, args) {
     const voiceChannel = message.member.voice.channel;
     if (!voiceChannel) {
-      return message.channel.send("🎧 Cần join channel để nge nhạc !!!");
+      return message.channel.send("🎧 Cần join channel để nghe nhạc !!!");
     }
     const permissions = voiceChannel.permissionsFor(message.client.user);
     if (!permissions.has("CONNECT") || !permissions.has("SPEAK")) {
@@ -29,28 +30,30 @@ module.exports = {
     }
     if (args?.length === 0) {
       return message.channel.send(
-        "You need to provide a SoundCloud URL or search keyword!"
+        "You need to provide a YouTube URL or search keyword!"
       );
     }
     const search = args.join(" ");
     try {
-      const CLIENT_ID = env.SOUNDCLOUD_CLIENT_ID;
-      const tracks = await scdl.search({
-        query: search,
-        resourceType: "tracks",
-        limit: 5,
-        offset: 0,
-        clientId: CLIENT_ID,
+      const YOUTUBE_API_KEY = env.YOUTUBE_API_KEY;
+      const youtube = google.youtube({
+        version: 'v3',
+        auth: YOUTUBE_API_KEY
       });
 
-      if (tracks?.collection && tracks.collection.length > 0) {
+      const response = await youtube.search.list({
+        part: 'snippet',
+        q: search,
+        type: 'video',
+        maxResults: 5
+      });
+
+      const videos = response.data.items;
+
+      if (videos && videos.length > 0) {
         let reply = "🎵  Chọn 1 bài bằng cách nhập (1-5):\n";
-        tracks.collection.forEach((track, index) => {
-          reply += `${index + 1}. ${track.title} (${Math.floor(
-            track.duration / 1000 / 60
-          )}:${Math.floor((track.duration / 1000) % 60)
-            .toString()
-            .padStart(2, "0")})\n`;
+        videos.forEach((video, index) => {
+          reply += `${index + 1}. ${video.snippet.title}\n`;
         });
         message.channel.send(reply);
 
@@ -67,18 +70,19 @@ module.exports = {
           errors: ["time"],
         });
         const choice = collected.first().content;
-        const track = tracks.collection[parseInt(choice) - 1];
-        await handleSong(track, message, voiceChannel, CLIENT_ID);
+        const video = videos[parseInt(choice) - 1];
+        await handleSong(video, message, voiceChannel);
       } else {
         message.channel.send("Không tìm thấy kết quả nào");
       }
     } catch (error) {
+      console.error(error);
       message.channel.send("There was an error searching for the track!");
     }
   },
 };
 
-async function handleSong(track, message, voiceChannel, clientId) {
+async function handleSong(video, message, voiceChannel) {
   let serverQueue = queueManager.getQueue(voiceChannel.id);
 
   if (!serverQueue) {
@@ -95,8 +99,8 @@ async function handleSong(track, message, voiceChannel, clientId) {
   }
 
   serverQueue.songs.push({
-    title: track.title,
-    url: track.permalink_url,
+    title: video.snippet.title,
+    url: `https://www.youtube.com/watch?v=${video.id.videoId}`,
   });
 
   if (!serverQueue.playing) {
@@ -123,10 +127,10 @@ async function handleSong(track, message, voiceChannel, clientId) {
       serverQueue.player.on(AudioPlayerStatus.Idle, () => {
         console.log("🚀 ~ playSong ~ STOPPP:", serverQueue.songs.length);
         serverQueue.songs.shift();
-        playSong(serverQueue, clientId, message.channel);
+        playYT(serverQueue, message.channel);
       });
 
-      playSong(serverQueue, clientId, message.channel);
+      playYT(serverQueue, message.channel);
     } catch (error) {
       queueManager.deleteQueue(voiceChannel.id);
       return message.channel.send(
@@ -134,7 +138,6 @@ async function handleSong(track, message, voiceChannel, clientId) {
       );
     }
   } else {
-    message.channel.send(`🎤 Đã thêm vào danh sách: ${track.title}`);
+    message.channel.send(`🎤 Đã thêm vào danh sách: ${video.snippet.title}`);
   }
 }
-

@@ -1,6 +1,6 @@
 const { Client, IntentsBitField } = require('discord.js');
 const fs = require('fs');
-const { VoiceConnectionStatus,joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection } = require('@discordjs/voice');
+const { VoiceConnectionStatus,joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, NoSubscriberBehavior } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 require('dotenv').config();
 const { env } = require('process');
@@ -11,6 +11,7 @@ const gtts = require('gtts');
 const path = require('path');
 const bootstrap = require('./deploy/bootrap');
 const queueManager = require("./data");
+const play = require('play-dl')
 
 app.get('/', (req, res) => {
   res.send('Hello World!')
@@ -26,8 +27,9 @@ const client = new Client({
    IntentsBitField.Flags.GuildMembers,
    IntentsBitField.Flags.GuildMessages,
    IntentsBitField.Flags.MessageContent,
-   IntentsBitField.Flags.GuildVoiceStates, // Ensure voice state intents are enabled
-  ]
+   IntentsBitField.Flags.GuildVoiceStates,
+   IntentsBitField.Flags.DirectMessages,
+  ], partials: ['CHANNEL', 'MESSAGE']
 });
 
 
@@ -85,6 +87,11 @@ client.on('interactionCreate', async interaction => {
 //   //   message.channel.send('There was an error trying to execute that command!');
 //   // }
 // });
+
+
+
+
+
 
 client.on('guildMemberAdd', member => {
   const guild = client.guilds.cache.get(oldState.guild.id);

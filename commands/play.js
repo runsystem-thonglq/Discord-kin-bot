@@ -4,22 +4,22 @@ const {
   createAudioResource,
   AudioPlayerStatus,
 } = require("@discordjs/voice");
-const scdl = require("soundcloud-downloader").default;
 const { SlashCommandBuilder } = require("@discordjs/builders");
+const ytdl = require('ytdl-core');
+const ytsearch = require('yt-search');
 require("dotenv").config();
-const { env } = require("process");
 const queueManager = require("../data");
-const playSong = require("../utils/playsong");
-
+const playSong = require("../utils/playYT");
+const play = require('play-dl');
 module.exports = {
   name: "play",
   data: new SlashCommandBuilder()
     .setName("play")
-    .setDescription("Play a track from SoundCloud"),
+    .setDescription("Play a track from YouTube"),
   async execute(message, args) {
     const voiceChannel = message.member.voice.channel;
     if (!voiceChannel) {
-      return message.channel.send("🎧 Cần join channel để nge nhạc !!!");
+      return message.channel.send("🎧 Cần join channel để nghe nhạc !!!");
     }
     const permissions = voiceChannel.permissionsFor(message.client.user);
     if (!permissions.has("CONNECT") || !permissions.has("SPEAK")) {
@@ -29,59 +29,34 @@ module.exports = {
     }
     if (args?.length === 0) {
       return message.channel.send(
-        "You need to provide a SoundCloud URL or search keyword!"
+        "You need to provide a YouTube URL or search keyword!"
       );
     }
     const search = args.join(" ");
     try {
-      const CLIENT_ID = env.SOUNDCLOUD_CLIENT_ID;
-      const tracks = await scdl.search({
-        query: search,
-        resourceType: "tracks",
-        limit: 5,
-        offset: 0,
-        clientId: CLIENT_ID,
-      });
-
-      if (tracks?.collection && tracks.collection.length > 0) {
-        let reply = "🎵  Chọn 1 bài bằng cách nhập (1-5):\n";
-        tracks.collection.forEach((track, index) => {
-          reply += `${index + 1}. ${track.title} (${Math.floor(
-            track.duration / 1000 / 60
-          )}:${Math.floor((track.duration / 1000) % 60)
-            .toString()
-            .padStart(2, "0")})\n`;
-        });
-        message.channel.send(reply);
-
-        const filter = (response) => {
-          return (
-            ["1", "2", "3", "4", "5"].includes(response.content) &&
-            response.author.id === message.user.id
-          );
-        };
-        const collected = await message.channel.awaitMessages({
-          filter,
-          max: 1,
-          time: 30000,
-          errors: ["time"],
-        });
-        const choice = collected.first().content;
-        const track = tracks.collection[parseInt(choice) - 1];
-        await handleSong(track, message, voiceChannel, CLIENT_ID);
+      let video;
+      if (play.yt_validate(search) === 'video') {
+        const videoInfo = await play.video_info(search);
+        video = { title: videoInfo.video_details.title, url: videoInfo.video_details.url };
       } else {
-        message.channel.send("Không tìm thấy kết quả nào");
+        const searchResult = await play.search(search, { limit: 1 });
+        if (!searchResult.length) return message.channel.send("Không tìm thấy kết quả nào");
+        video = { title: searchResult[0].title, url: searchResult[0].url };
       }
+      await handleSong(video, message, voiceChannel);
     } catch (error) {
+      console.error(error);
       message.channel.send("There was an error searching for the track!");
     }
   },
 };
 
-async function handleSong(track, message, voiceChannel, clientId) {
+async function handleSong(video, message, voiceChannel) {
+  console.log("🚀 ~ handleSong ~ Starting handleSong function");
   let serverQueue = queueManager.getQueue(voiceChannel.id);
 
   if (!serverQueue) {
+    console.log("🚀 ~ handleSong ~ Creating new queue");
     serverQueue = {
       textChannel: message.channel,
       voiceChannel: voiceChannel,
@@ -95,11 +70,13 @@ async function handleSong(track, message, voiceChannel, clientId) {
   }
 
   serverQueue.songs.push({
-    title: track.title,
-    url: track.permalink_url,
+    title: video.title,
+    url: video.url,
   });
+  console.log(`🚀 ~ handleSong ~ Added song to queue: ${video.title}`);
 
   if (!serverQueue.playing) {
+    console.log("🚀 ~ handleSong ~ Starting playback");
     serverQueue.playing = true;
     try {
       const connection = joinVoiceChannel({
@@ -107,13 +84,15 @@ async function handleSong(track, message, voiceChannel, clientId) {
         guildId: message.guild.id,
         adapterCreator: message.guild.voiceAdapterCreator,
       });
+      console.log("🚀 ~ handleSong ~ Voice connection established");
       serverQueue.connection = connection;
       serverQueue.player = createAudioPlayer();
       connection.subscribe(serverQueue.player);
 
       serverQueue.player.on(AudioPlayerStatus.Playing, () => {
+        console.log("🚀 ~ handleSong ~ AudioPlayerStatus.Playing event fired");
         if (serverQueue.songs.length > 0) {
-          console.log("🚀 ~ playSong ~ Playing:", serverQueue.songs.length);
+          console.log("🚀 ~ handleSong ~ Now playing:", serverQueue.songs[0].title);
           message.channel.send(
             `🔊 Đang phát: ${serverQueue.songs[0].title} ${serverQueue.songs[0].url}`
           );
@@ -121,20 +100,26 @@ async function handleSong(track, message, voiceChannel, clientId) {
       });
 
       serverQueue.player.on(AudioPlayerStatus.Idle, () => {
-        console.log("🚀 ~ playSong ~ STOPPP:", serverQueue.songs.length);
+        console.log("🚀 ~ handleSong ~ AudioPlayerStatus.Idle event fired");
         serverQueue.songs.shift();
-        playSong(serverQueue, clientId, message.channel);
+        playSong(serverQueue, message.channel);
       });
 
-      playSong(serverQueue, clientId, message.channel);
+      serverQueue.player.on('error', (error) => {
+        console.error('🚀 ~ handleSong ~ Audio player error:', error);
+        console.error('Error details:', error.resource.metadata);
+        // Implement additional error handling or recovery logic here
+      });
+
+      playSong(serverQueue, message.channel);
     } catch (error) {
+      console.error("🚀 ~ handleSong ~ Error in playback setup:", error);
       queueManager.deleteQueue(voiceChannel.id);
       return message.channel.send(
         "There was an error connecting to the voice channel!"
       );
     }
   } else {
-    message.channel.send(`🎤 Đã thêm vào danh sách: ${track.title}`);
+    message.channel.send(`🎤 Đã thêm vào danh sách: ${video.title}`);
   }
 }
-
