@@ -103,26 +103,26 @@ client.on('interactionCreate', async interaction => {
 //   // }
 // });
 
-client.on('guildMemberAdd', member => {
-  const guild = client.guilds.cache.get(oldState.guild.id);
-  const channel = member.guild.systemChannel; // Hoặc thay bằng ID của kênh chào mừng
-  const defaultChannel = guild.channels.cache.find(channel => channel.type == 0 )||channel
-  if (defaultChannel) {
-    defaultChannel.send(`Chào mừng ${member} đã tham gia máy chủ!`);
-  }
-});
+// client.on('guildMemberAdd', member => {
+//   const guild = client.guilds.cache.get(oldState.guild.id);
+//   const channel = member.guild.systemChannel; // Hoặc thay bằng ID của kênh chào mừng
+//   const defaultChannel = guild.channels.cache.find(channel => channel.type == 0 )||channel
+//   if (defaultChannel) {
+//     defaultChannel.send(`Chào mừng ${member} đã tham gia máy chủ!`);
+//   }
+// });
 
-client.on('presenceUpdate', (oldPresence, newPresence) => {
-  if (!oldPresence || oldPresence.status === 'offline') {
-    const member = newPresence.member;
-    const guild = client.guilds.cache.get(oldState.guild.id);
-    const channel = member.guild.systemChannel; // Hoặc thay bằng ID của kênh chào mừng
-    const defaultChannel = guild.channels.cache.find(channel => channel.type == 0 )||channel
-    if (defaultChannel) {
-      defaultChannel.send(`Chào mừng ${member} đã online!`);
-    }
-  }
-});
+// client.on('presenceUpdate', (oldPresence, newPresence) => {
+//   if (!oldPresence || oldPresence.status === 'offline') {
+//     const member = newPresence.member;
+//     const guild = client.guilds.cache.get(oldState.guild.id);
+//     const channel = member.guild.systemChannel; // Hoặc thay bằng ID của kênh chào mừng
+//     const defaultChannel = guild.channels.cache.find(channel => channel.type == 0 )||channel
+//     if (defaultChannel) {
+//       defaultChannel.send(`Chào mừng ${member} đã online!`);
+//     }
+//   }
+// });
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
   // Kiểm tra xem thành viên có phải là bot hay không

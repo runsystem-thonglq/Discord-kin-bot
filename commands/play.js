@@ -10,6 +10,7 @@ require("dotenv").config();
 const { env } = require("process");
 const queueManager = require("../data");
 const playSong = require("../utils/playsong");
+const { isValidUrl } = require("../utils/helpers");
 
 module.exports = {
   name: "play",
@@ -35,6 +36,19 @@ module.exports = {
     const search = args.join(" ");
     try {
       const CLIENT_ID = env.SOUNDCLOUD_CLIENT_ID;
+
+
+    // Kiểm tra nếu input là URL SoundCloud hợp lệ
+    if (isValidUrl(search) && search.includes("soundcloud.com")) {
+      try {
+        const track = await scdl.getInfo(search, CLIENT_ID);
+        await handleSong(track, message, voiceChannel, CLIENT_ID);
+        return;
+      } catch (error) {
+        return message.channel.send("Invalid SoundCloud URL or track not found!");
+      }
+    }
+
       const tracks = await scdl.search({
         query: search,
         resourceType: "tracks",
@@ -73,6 +87,7 @@ module.exports = {
         message.channel.send("Không tìm thấy kết quả nào");
       }
     } catch (error) {
+      console.log("🚀 ~ execute ~ error:", error)
       message.channel.send("There was an error searching for the track!");
     }
   },
