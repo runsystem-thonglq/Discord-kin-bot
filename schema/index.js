@@ -1,8 +1,10 @@
 // Danh sách các slash command của bot
 
 const { Constants } = require("discord.js");
+const tts = require("../commands/ts");
 
 const schema = [
+  tts.data.toJSON(),
   {
     name: "play",
     description: "Plays a song or playlist on SoundCloud",

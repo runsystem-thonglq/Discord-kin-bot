@@ -11,10 +11,27 @@ const gtts = require('gtts');
 const path = require('path');
 const bootstrap = require('./deploy/bootrap');
 const queueManager = require("./data");
-
+const { REST } = require('@discordjs/rest');
+const { Routes } = require('discord-api-types/v9');
+// const rest = new REST({ version: '9' }).setToken(process.env.DISCORD_TOKEN);
 app.get('/', (req, res) => {
   res.send('Hello World!')
 })
+
+// (async () => {
+//   try {
+//     console.log('Bắt đầu đăng ký lệnh application (/) commands.');
+
+//     await rest.put(
+//       Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+//       { body: commands },
+//     );
+
+//     console.log('Đăng ký lệnh application (/) commands thành công.');
+//   } catch (error) {
+//     console.error(error);
+//   }
+// })();
 
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`)
